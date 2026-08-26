@@ -22,14 +22,47 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## 1. Fiji runner: FFT bandpass only
+## 1. Fiji runner: FFT stripe removal only
 ```bash
-./minizero_process.sh /path/to/Fiji.app/ImageJ-linux64 INPUT_FILE OUTDIR NAME
+./minizero_process.sh /path/to/Fiji.app/ImageJ-linux64 INPUT_FILE OUTDIR NAME [EXTRA_MACRO_ARGS]
 ```
 
 - `INPUT_FILE`: video file (currently tested only with `mio` generated `.avi` files)
 - Writes `{OUTDIR}/{NAME}_fftonly.avi` (+ `{NAME}_fftonly_sub20.avi` JPEG preview, `{NAME}_raw.avi` copy)
-- Only step: `run("Bandpass Filter...", "filter_large=150 filter_small=1 suppress=Horizontal tolerance=1 autoscale process");`
+- Only step: `run("Bandpass Filter...", "filter_large=100000 filter_small=0 suppress=Horizontal tolerance=1 process");`
+
+Strictly stripe removal — no structure filtering, no normalization, no blur,
+no bleach correction, no background subtraction. `filter_large` huge +
+`filter_small=0` holds the bandpass wide open; `autoscale`/`saturate` are
+omitted, so the output range narrows as the stripes are removed instead of
+being stretched back to 0–255. Everything else is step 2's job.
+
+Two effects inherent to the method: stripe suppression also attenuates smooth
+large-scale gradients perpendicular to the stripes, and the FFT's power-of-2
+zero-padding shifts the frame mean by ~2%.
+
+`EXTRA_MACRO_ARGS` is a `;`-separated override list, e.g.
+`'tolerance=5;suppress=Vertical;step=10'`; see the header of
+`minizero_process.ijm` for all keys.
+
+Reprocessing an existing `{NAME}_raw.avi` in place is supported — the runner
+skips the raw copy when the input already is that file.
+
+Set `FIJI_MEM` (e.g. `FIJI_MEM=16g`) to cap the JVM heap; unset uses Fiji's own
+default.
+
+### Batch over a whole tree
+```bash
+./minizero_process_batch.sh /path/to/Fiji.app/ImageJ-linux64 ROOT_DIR [JOBS]
+```
+
+Walks `ROOT_DIR` for every `<NAME>_raw.avi` and writes the step-1 outputs next
+to it. `JOBS` (default 4) is how many Fiji instances run at once; `FIJI_MEM`
+(default `16g`) is the per-job heap, kept modest because the jobs run
+concurrently. Logs go to `$LOGDIR` (default `./fftonly_logs`).
+
+Inputs whose `_fftonly.avi` already exists are skipped, so re-running is cheap
+and safe — it doubles as a check that every `_raw.avi` has been processed.
 
 ## 2. Python: minizero_preprocess.py
 Pedestal correction -> min-projection subtraction -> gaussian despeckle ->
