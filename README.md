@@ -3,6 +3,25 @@
 Two steps, run in order. The output of step 2 goes straight into motion
 correction / source extraction (minian) — no preprocessing there.
 
+## Setup
+
+You need, once:
+
+- [Fiji](https://fiji.sc/) (step 1) — any recent download; the macro runs
+  headless, no plugins beyond the stock install.
+- `ffmpeg`/`ffprobe` on PATH (step 2), e.g. `apt install ffmpeg` /
+  `brew install ffmpeg`.
+- Python ≥ 3.9 with the packages in `requirements.txt`, ideally in a
+  virtual environment:
+
+```bash
+git clone -b new_preprocessing https://github.com/miniscope/miniscope_preproc
+cd miniscope_preproc
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
 ## 1. Fiji runner: FFT bandpass only
 ```bash
 ./minizero_process.sh /path/to/Fiji.app/ImageJ-linux64 INPUT_FILE OUTDIR NAME
@@ -20,5 +39,5 @@ stays flat regardless of recording length. Same script for every animal.
 python minizero_preprocess.py NAME_fftonly.avi NAME_fftonly_proc.avi --sigma 0.6 --tophat 8 --gain 2.5
 ```
 
-- Requires `numpy`, `opencv-python`, `scikit-image` and `ffmpeg` on PATH
+- Dependencies: see Setup above (`tifffile` is only needed for 16-bit TIFF output)
 - Pin `--gain` per dataset (never `auto` across a batch); see `--help` for all options

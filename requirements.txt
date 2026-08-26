@@ -1,0 +1,4 @@
+numpy
+opencv-python
+scikit-image
+tifffile  # only needed for 16-bit TIFF output (--format tif16 / .tif destination)
