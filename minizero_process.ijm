@@ -1,6 +1,8 @@
 // minizero_process.ijm
+// FFT bandpass (incl. horizontal-stripe suppression) ONLY — all further
+// preprocessing moved to minizero_preprocess.py.
 // Runs in GUI and headless (pyimagej).
-// RAW full outputs + JPEG sub20 outputs.
+// RAW full output + JPEG sub20 preview.
 //
 // Usage:
 //   ImageJ-linux64 --headless -macro minizero_process.ijm "input=/path/in.avi;outdir=/path/out;name=NAME"
@@ -18,16 +20,11 @@ if (inputPath=="" || outdir=="" || name=="") {
 
 File.makeDirectory(outdir);
 
-outBleach   = pathJoin(outdir, name + ".avi");
-outBleach20 = pathJoin(outdir, name + "_sub20.avi");
-outBg       = pathJoin(outdir, name + "_bg.avi");
-outBg20     = pathJoin(outdir, name + "_bg_sub20.avi");
+outFft   = pathJoin(outdir, name + "_fftonly.avi");
+outFft20 = pathJoin(outdir, name + "_fftonly_sub20.avi");
 
 // Open the input
 open(inputPath);
-
-// ---- ORIGINAL PIPELINE ----
-
 origTitle = getTitle();
 origID = getImageID();
 
@@ -41,75 +38,27 @@ close();
 
 selectImage(workID);
 
-// Bandpass filter
+// Bandpass filter — the only processing step in Fiji
 run("Bandpass Filter...",
     "filter_large=150 filter_small=1 suppress=Horizontal tolerance=1 autoscale process");
 
-// 3D Gaussian blur
-run("Gaussian Blur 3D...", "x=1 y=1 z=1");
+// Save full stack as RAW AVI (Compression=None)
+saveAVI_none20ByID(workID, outFft);
 
-// Bleach correction
-run("Bleach Correction", "correction=[Histogram Matching]");
-bleachID = getImageID();
-
-// Save bleach corrected full stack as RAW AVI (Compression=None)
-saveAVI_none20ByID(bleachID, outBleach);
-
-// raw20 BEFORE background subtraction (1 out of 20 frames)
-selectImage(bleachID);
+// sub20 preview (1 out of 20 frames) as JPEG AVI
+selectImage(workID);
 n = nSlices();
 run("Make Substack...", "slices=1-" + n + "-20");
-raw20ID = getImageID();
-rename(origTitle + "_raw20");
-
-// Save bleach sub20 as JPEG AVI
-saveAVI_jpeg20ByID(raw20ID, outBleach20);
-
-// Background subtraction via min Z-projection
-selectImage(bleachID);
-run("Z Project...", "projection=[Min Intensity]");
-minProjID = getImageID();
-
-bleachTitle  = getTitleOfImage(bleachID);
-minProjTitle = getTitleOfImage(minProjID);
-
-selectImage(bleachID);
-run("Image Calculator...",
-    "image1=[" + bleachTitle + "] operation=Subtract image2=[" + minProjTitle + "] create 32-bit stack");
-resultID = getImageID();
-
-// Cleanup intermediates
-selectImage(minProjID); close();
-selectImage(bleachID); close();
-selectImage(raw20ID); close();
-
-// Display-only contrast
-selectImage(resultID);
-run("Enhance Contrast...", "saturated=0");
-rename(origTitle + "_proc");
-
-// Save bg full stack as RAW AVI
-saveAVI_none20ByID(resultID, outBg);
-
-// bg20 AFTER background subtraction (1 out of 20 frames)
-selectImage(resultID);
-n = nSlices();
-run("Make Substack...", "slices=1-" + n + "-20");
-bg20ID = getImageID();
-rename(origTitle + "_bg20");
-
-// Save bg sub20 as JPEG AVI
-saveAVI_jpeg20ByID(bg20ID, outBg20);
+sub20ID = getImageID();
+saveAVI_jpeg20ByID(sub20ID, outFft20);
 
 // Cleanup
-selectImage(bg20ID); close();
-selectImage(resultID); close();
+selectImage(sub20ID); close();
+selectImage(workID); close();
 
 print("Done. Wrote:");
-print("  " + outBleach + " (RAW)");
-print("  " + outBleach20 + " (JPEG)");
-print("  " + outBg + " (RAW)");
-print("  " + outBg20 + " (JPEG)");
+print("  " + outFft + " (RAW)");
+print("  " + outFft20 + " (JPEG)");
 
 // Exit cleanly
 run("Close All");
@@ -134,14 +83,6 @@ function saveAVI_jpeg20ByID(id, outPath) {
     selectImage(cur);
 }
 
-function getTitleOfImage(id) {
-    cur = getImageID();
-    selectImage(id);
-    t = getTitle();
-    selectImage(cur);
-    return t;
-}
-
 function getArgValue(argString, key) {
     keyEq = key + "=";
     parts = split(argString, ";");
@@ -157,4 +98,3 @@ function pathJoin(dir, leaf) {
     if (endsWith(dir, sep)) return dir + leaf;
     else return dir + sep + leaf;
 }
-
