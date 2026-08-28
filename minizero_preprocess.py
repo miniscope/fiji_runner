@@ -5,7 +5,7 @@ Complete preprocessing for wireless Miniscope Zero recordings.
     pedestal correction -> min-projection subtraction -> gaussian despeckle
                         -> tophat background removal
 
-Input is the Fiji `_fftonly` output (bandpass / horizontal-stripe suppression
+Input is the Fiji `_destripe` output (bandpass / horizontal-stripe suppression
 stays in Fiji). The output is ready for motion correction and source
 extraction directly - no further background handling is assumed downstream.
 Streams in three passes so memory stays flat regardless of recording length.
