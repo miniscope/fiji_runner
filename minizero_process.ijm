@@ -14,7 +14,7 @@
 //   tolerance=1           tolerance of direction, %
 //   filter_large=100000   large-structure cutoff; huge == no high-pass
 //   filter_small=0        small-structure cutoff; 0 == no low-pass
-//   step=20               frame step for the sub20 preview
+//   step=20               frame step for the sub{step} preview (names the output file too)
 
 setBatchMode(true);
 
@@ -35,8 +35,12 @@ step        = parseInt(getArgValueOr(args, "step", "20"));
 
 File.makeDirectory(outdir);
 
-outFull = pathJoin(outdir, name + "_fftonly.avi");
-outSub  = pathJoin(outdir, name + "_fftonly_sub20.avi");
+outFull = pathJoin(outdir, name + "_destripe.avi");
+outSub  = pathJoin(outdir, name + "_destripe_sub" + step + ".avi");
+// Full stack goes to a temp name first and is renamed once everything else
+// succeeded, so a killed run never leaves a partial _destripe.avi that the
+// batch skip check would mistake for a finished output.
+tmpFull = pathJoin(outdir, name + "_destripe.part.avi");
 
 // ---- Open ----
 open(inputPath);
@@ -65,19 +69,25 @@ bpOpts = "filter_large=" + filterLarge +
 print("Bandpass Filter...: " + bpOpts);
 run("Bandpass Filter...", bpOpts);
 
-// ---- Save full stack (uncompressed) ----
-saveAVI_none20ByID(workID, outFull);
+// ---- Save full stack (uncompressed, to temp name) ----
+saveAVI_none20ByID(workID, tmpFull);
 
 // ---- Save 1-in-{step} preview (JPEG) ----
 selectImage(workID);
 n = nSlices();
 run("Make Substack...", "slices=1-" + n + "-" + step);
 subID = getImageID();
-rename(origTitle + "_fftonly_sub" + step);
+rename(origTitle + "_destripe_sub" + step);
 saveAVI_jpeg20ByID(subID, outSub);
 
 selectImage(subID);  close();
 selectImage(workID); close();
+
+// ---- Commit the full output (completion marker) ----
+if (File.exists(outFull)) File.delete(outFull);
+if (!File.rename(tmpFull, outFull)) {
+    exit("Failed to rename " + tmpFull + " to " + outFull);
+}
 
 print("Done. Wrote:");
 print("  " + outFull + " (RAW)");
